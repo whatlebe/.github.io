@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+
+  <style>
+
+  @font-face {
+      font-family: Metropolis-medium;
+      src: url("http://127.0.0.1:3000/metropolis/Metropolis-Medium.otf") format("opentype");
+}
+@font-face {
+    font-family: Metropolis-LightItalic;
+    src: url("http://127.0.0.1:3000/metropolis/Metropolis-LightItalic.otf") format("opentype");
+}
+
+@font-face {
+    font-family: Metropolis-Light;
+    src: url("http://127.0.0.1:3000/metropolis/Metropolis-Light.otf") format("opentype");
+}
+
+
+ h1{
+   font-family: Metropolis-Medium;
+   padding-left: 1em;
+
+ }
+
+
+    .container {
+      width: 100%;
+          }
+
+    .timeline {
+      width: 75vw;
+      padding: 2em 2em 4em 2em;
+      height: 100%;
+      overflow-y: scroll;
+    }
+
+    .fixedTimeline {
+      padding: 0px;
+      margin-top: 0px;
+      background: white;
+      width: 75vw;
+      height: 100px;
+      position: fixed;
+      bottom: 0px;
+    }
+
+    @media only screen and (max-width: 1150px) {
+      .timeline {
+        width: 70vw;
+        background: yellow;
+        }
+
+        #tooltip {
+          width: 10vw;
+        }
+
+      .fixedTimeline {
+        width: 70vw;
+        }
+      }
+
+    h4 {
+      padding-left: 2em;
+      font-family: Metropolis-Light;
+
+    }
+
+    h5 {
+      margin: 0;
+      font-family: Metropolis-Medium;
+      font-size: 16px;
+      line-height: 1em;
+      padding-bottom: 1em;
+      padding-top: 1em;
+    }
+
+    .sortIcon:hover {
+      color: orange;
+      cursor: pointer;
+    }
+
+    .bar:hover {
+      background-color: rgba(0, 75, 0, .5);
+    }
+
+    .tooltipContainer{
+      position: fixed;
+      width: 20vw;
+      float: right;
+      background-color: pink;
+      width: 50%;
+    }
+
+    #tooltip {
+      width: 20vw;
+      right: 0px;
+      bottom: 0;
+      position: fixed;
+      visibility: visible;
+      opacity: 1;
+      transition: opacity 2s linear;
+      padding: 2em;
+    }
+
+    #tooltip.hidden {
+      visibility: hidden;
+      display: none;
+      opacity: 0;
+      transition: visibility 0s 2s, opacity 2s linear;
+    }
+
+    #tooltip p {
+      margin: 0;
+      font-family: Metropolis-Light;
+      font-size: 12px;
+      line-height: 1em;
+      padding-bottom: 1em;
+    }
+
+
+
+  #tooltip img {
+  width: 100%;
+  height: auto;
+}
+
+
+
+  </style>
+  <meta charset="utf-8">
+  <title></title>
+</head>
+
+<body>
+  <div class="container">
+
+    <div class="timeline">
+      <h1>Guilded Age Mansions of New York City</h1>
+      <h4> Sort by: <span class="sortIcon" id="byTime">Time</span>  |  <span class="sortIcon" id="byPreservation">Preservation</span>  |  <span class="sortIcon" id="byLocation">Location</span>  |  <span class="sortIcon" id="byArchitect">Architect</span>  |  <span class="sortIcon" id="byStyle">Style</span></h4>
+      <div class="buttonContainer">
+
+        <div class="fixedTimeline">
+        </div>
+
+
+    </div>
+
+  </div>
+<div class="tooltipContainer">
+    <div id="tooltip" class="hidden">
+  </div>
+</div>
+  </div>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+
+
+
+  <script type="text/javascript">
+    //set variables
+    var w = 1000;
+    var h = 800;
+    var barPadding = 1;
+    var padding = 30;
+    var dataset;
+
+    //load in data
+    d3.csv("mansions_final5.csv")
+      .then(function(data) {
+
+        let dataset = data;
+
+
+
+        /* test to make sure data is loaded
+        d3.select("body").selectAll("p")
+                 .data(dataset)
+                 .enter()
+                 .append("p")
+                 .text(function(d) {return d.Name;})
+        });
+        */
+
+        //make scales
+        //yaxis will be ordinal scales for each d.Name
+        var yScale = d3.scaleBand()
+          .domain(data.map(function(d) {
+            return d.Number;
+          }))
+          .range([padding, h - padding]) // “calculate even bands starting at 0 and ending at w, then set this scale’s range to those bands.”
+          .round(true) // <-- Enable rounding (NO HLAF PIXELS)
+          //could also use .rangeRound([0,w])
+          .paddingInner(0.1); //adds padding (5%) so they dont touch
+        //xaxis is the years
+        var xScale = d3.scaleLinear()
+          .domain([1880, 2022])
+          .range([padding, w - padding]);
+
+        /*
+         */
+        // Build color scale based on street location
+        var streetColor = d3.scaleSequential()
+          .interpolator(d3.interpolatePuBuGn)
+          .domain([30, 100]);
+
+
+        var archScale = d3.scaleOrdinal()
+          .domain(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'])
+          .range(["#809BD0", "#6C68A8", "#65C7C3", "#567374", "#293892", "#FBE15C", "#37843F", "#60A680", "#F8C153", "#F47C41", "#BDD76B", "#F39EC4", "#C26487", "#3876A9"]);
+
+        var styleColor = d3.scaleOrdinal()
+          .domain(["Beaux-Arts", "Châteauesque", "French Gothic", "French Renaissance Revival", "Georgian Revival", "Italian Renaissance", "Neoclassical", "Renaissance Revival"])
+          .range(["#414042", "#de755d", "#e8e379", "#b55390", "#74b586", "#566ba6", "#99beeb", "#ebc0a6"]);
+        /*
+                  // Build color scale based on Architect
+                  var architectColor = d3.scaleSequential()
+                    .range(d3.Pastel2)
+                    .domain([...new Set(data.map(d=>d.ArchGroup))]);
+
+                    // Build color scale Style
+                    var styleColor = d3.scaleSequential()
+                      .interpolator(d3.Pastel2)
+                      .domain([...new Set(data.map(d=>d.Style))]);
+
+                      var colorScale = d3.scaleOrdinal(d3[categorical[0].name])
+
+                  //console.log([...new Set(data.map(d=>d.ArchGroup))]);
+        */
+        //format axes (but not draw them)
+
+        var yAxis = d3.axisLeft()
+          .scale(yScale);
+
+        var xAxisBottom = d3.axisBottom()
+          .scale(xScale)
+          .ticks(20)
+          .tickFormat(d3.format("d"));
+
+        var xAxisTop = d3.axisTop()
+          .scale(xScale)
+          .ticks(20)
+          .tickFormat(d3.format("d"));
+
+        //make SVG element in which to place all our shapes
+        var svg = d3.select(".timeline")
+          .append("svg")
+      //    .attr("width", w)
+      //   .attr("height", h)
+          //.attr("width", "100%")
+          //.attr("height", "100%")
+          .attr("preserveAspectRatio", "xMinYMin meet")
+          .attr("viewBox", "0 0 1000 800");
+        //.attr("preserveAspectRatio", "xMinYMin meet")
+        //.attr("viewBox", "0 0 960 500");
+
+        var svgFixed = d3.select(".fixedTimeline")
+          .append("svg")
+          //.attr("width", "100%")
+          //.attr("height", 100);
+          .attr("preserveAspectRatio", "xMinYMin meet")
+          .attr("viewBox", "0 0 1000 80");
+        //make fixedTimeLine
+
+        var fixedTimeLine = svgFixed.append("g")
+          .attr("class", "fixedTimeLine");
+
+        //make background group
+        var backgroundGroup = svg.append("g")
+          .attr("class", "backgroundGroup")
+          //.attr("width", "100%")
+          //.attr("preserveAspectRatio", "xMinYMin meet")
+          //.attr("viewBox", "0 0 w h");
+
+/*
+          backgroundGroup.append("line")
+            .attr("id", "preservationLine")
+            .style("stroke", "grey")
+            .style("stroke-width", 1)
+            .attr("x1", xScale(1954))
+            .attr("y1", 0)
+            .attr("x2", xScale(1954))
+            .attr("y2", h);
+*/
+
+        //make background rectangles
+        backgroundGroup.selectAll("rect")
+          .data(dataset)
+          .enter()
+          .append("rect")
+          .attr("width", xScale(2022) - padding)
+          .attr("height", yScale.bandwidth()) //different from previous
+          //.attr("height", 50);
+          .attr("y", function(d, i) {
+            return yScale(d.Number);
+          })
+          .attr("x", padding)
+
+          .attr("fill", "#EEEFED")
+          .attr("opacity", "0.95");
+
+
+          backgroundGroup.append("text")
+            .attr("class", "preservationLabel")
+            .text("First preservation")
+            .attr("text-anchor", "left")
+            .attr("y", 0)
+            .attr("x", xScale(1954))
+            .attr("font-family", "Metropolis-Light")
+            .attr("font-size", "20px")
+            .attr("fill", "black");
+
+
+        //create an svg group within svg called shapeGroup
+        var shapeGroup = svg.append("g")
+          .attr("class", "shapeGroup")
+          .attr("preserveAspectRatio", "xMinYMin meet")
+          .attr("viewBox", "0 0 w h");
+
+
+        var dataGroup = svg.append("g")
+          .attr("class", "dataGroup")
+          .attr("preserveAspectRatio", "xMinYMin meet")
+          .attr("viewBox", "0 0 w h");
+
+
+
+
+
+
+        //add bars!
+        var barGroup = dataGroup.selectAll("g")
+          .data(dataset)
+          .enter()
+          .append("rect")
+          .attr("class", "bar")
+          .attr("width", function(d) {
+            return (xScale(d.End) - xScale(d.Start));
+          })
+          .attr("height", yScale.bandwidth())
+          .attr("y", function(d, i) {
+            return yScale(d.Number);
+          })
+          .attr("x", function(d) {
+            return xScale(d.Start);
+          })
+          .attr("Name", (function(d) {
+            return d.Name;
+          }))
+          .attr("Start", (function(d) {
+            return d.Start;
+          }))
+          .attr("End", (function(d) {
+            return d.End;
+          }))
+          .attr("key", (function(d) {
+            return d.Number;
+          }))
+          .attr("Image", (function(d) {
+            return d.Image;
+          }))
+          .attr("Today", (function(d) {
+            return d.Today;
+          }))
+          .attr("Architect", (function(d) {
+              return d.Architect;
+          }))
+          .attr("Style", (function(d) {
+              return d.Style;
+          }))
+          .attr("Location", (function(d) {
+            return d.Location;
+          }))
+          .attr("fill", function(d) {
+            return streetColor(d.Street);
+          })
+
+          //..attr("fill", function(d) { return console.log([...new Set(data.map(d=>d.ArchGroup))]);})
+          //.attr("fill", function(d) {
+          //return architectColor(d.ArchGroup);
+          //})
+
+
+          .on("mouseover", function(d) {
+            var Start = d3.select(this).attr("Start");
+            var End = d3.select(this).attr("End");
+            var Image = d3.select(this).attr("Image");
+            var Name = d3.select(this).attr("Name");
+            var Today = d3.select(this).attr("Today");
+            var Style = d3.select(this).attr("Style");
+            var Architect = d3.select(this).attr("Architect");
+            var stLocation = d3.select(this).attr("Location");
+            //Get this bar's x/y END values, then augment for the tooltip
+            var yPositionBar = parseFloat(d3.select(this).attr("y")) + yScale.bandwidth() / 2;
+            var xPositionBar = parseFloat(d3.select(this).attr("x"));
+
+
+            //Create the dashed line at beginning of bar on hover
+            dataGroup.append("line")
+              .attr("id", "startLine")
+              .style("stroke-dasharray", ("3, 3"))
+              .style("stroke", "grey")
+              .style("stroke-width", 1)
+              .attr("x1", xPositionBar)
+              .attr("y1", 30)
+              .attr("x2", xPositionBar)
+              .attr("y2", h);
+
+            fixedTimeLine.append("line")
+              .attr("id", "startLineFixed")
+              .style("stroke-dasharray", ("3, 3"))
+              .style("stroke", "grey")
+              .style("stroke-width", 1)
+              .attr("x1", xPositionBar)
+              .attr("y1", 0)
+              .attr("x2", xPositionBar)
+              .attr("y2", 65);
+
+
+            fixedTimeLine.append("text")
+              .attr("id", "dateLabelBottom")
+              .attr("x", xPositionBar - 30)
+              .attr("y", 80)
+              .attr("fill", "red")
+              .text(Start)
+              .attr("font-family", "Metropolis-Medium")
+              .attr("font-size", "15px")
+              .attr("fill", "black")
+              .transition("#dateLabelBottom")
+              .duration(1000);
+
+
+            //Get this bar's x/y END values, then augment for hover
+            var xPositionWidth = parseFloat(d3.select(this).attr("width"));
+            var xPositionStart = parseFloat(d3.select(this).attr("x"));
+            var xPositionBarEnd = xPositionWidth + xPositionStart;
+            //var startDate = d3.select(this).html(this.Name);
+
+
+            //Create the dashed line at end of bar
+            dataGroup.append("line")
+              .attr("id", "endLine")
+              .style("stroke-dasharray", ("3, 3"))
+              .style("stroke", "grey")
+              .style("stroke-width", 1)
+              .attr("x1", xPositionBarEnd)
+              .attr("y1", 30)
+              .attr("x2", xPositionBarEnd)
+              .attr("y2", h);
+
+            fixedTimeLine.append("line")
+              .attr("id", "endLineFixed")
+              .style("stroke-dasharray", ("3, 3"))
+              .style("stroke", "grey")
+              .style("stroke-width", 1)
+              .attr("x1", xPositionBarEnd)
+              .attr("y1", 0)
+              .attr("x2", xPositionBarEnd)
+              .attr("y2", 65);
+
+            fixedTimeLine.append("text")
+              //.attr("class", "dateLabelBottom")
+              .attr("id", "endLabelBottom")
+              .attr("x", xPositionBarEnd - 30)
+              .attr("y", 80)
+              .attr("fill", "red")
+              .text(End)
+              .attr("font-family", "Metropolis-Medium")
+              .attr("font-size", "15px")
+              .attr("fill", "black")
+              .transition("#endLabelBottom")
+              .duration(1000);
+
+            //Update the tooltip position and value
+            d3.select("#tooltip")
+            //.style("top", (event.pageY)+"px")
+            //.style("left",(event.pageX)+"px")
+            //.select("#tooltipName")
+            .html('<img src=' + Image + '>'
+                   + '<p><span id="tooltipName"><h5>' + Name + '</h5></span></p>'
+                   + '<p><span id="#tooltipBuilt"><strong>Built:</strong> ' + Start + '</span></p>'
+                   + '<p><span id="#tooltipToday"><strong>Today:</strong> ' + Today + '</span></p>'
+                   + '<p><span id="#tooltipArchitect"><strong>Architect:</strong> ' + Architect + '</span></p>'
+                   + '<p><span id="#tooltipStyle"><strong>Style:</strong> ' + Style + '</span></p>'
+                   + '<p><span id="#tooltipLocation"><strong>Location:</strong> ' + stLocation + '</span></p>');
+
+          //  .select("#tooltipBuilt")
+          //  .text(Start);
+
+
+            //Show the tooltip
+            d3.select("#tooltip").classed("hidden", false);
+
+
+
+          })
+          .on("mouseout", function(d) {
+            d3.select("#startLine").remove();
+            d3.select("#startLineFixed").remove();
+            d3.select("#endLine").remove();
+            d3.select("#endLineFixed").remove();
+            d3.select("#endLabelBottom").remove();
+            d3.select("#dateLabelBottom").remove()
+            ;
+
+
+
+
+            //Hide the tooltip
+d3.select("#tooltip").classed("hidden", true).transition("#endLabelBottom")
+.duration(1000);
+
+
+          });
+
+
+        var div = d3.select("body.div.timeline")
+          .append("div")
+          .attr("position", "absolute")
+          .style("z-index", "10")
+          .attr("class", "tooltip")
+          .append("svg");
+
+
+        //add name labels
+        dataGroup.selectAll("text")
+          .data(dataset)
+          .enter()
+          .append("text")
+          .attr("class", "barName")
+          .text(function(d) {
+            return d.Name;
+          })
+          .attr("text-anchor", "right")
+          .attr("y", function(d, i) {
+            return yScale(d.Number) + yScale.bandwidth() - 7;
+          })
+          .attr("x", 40)
+          .attr("font-family", "Metropolis-Medium")
+          .attr("font-size", "11px")
+          .attr("fill", "black");
+
+        //add "today" labels
+        dataGroup.selectAll("text2")
+          .data(dataset)
+          .enter()
+          .append("text")
+          .attr("class", "barLabelToday")
+          .text(function(d) { if (d.Today ==="Demolished") {
+            return d.Today; } else {
+              return ;}
+            })
+          .attr("text-anchor", "left")
+          .attr("y", function(d, i) {
+            return yScale(d.Number) + yScale.bandwidth() - 7;
+          })
+          .attr("x", function(d, i) {
+            return xScale(d.End) + 3;
+          })
+          .attr("font-family", "Metropolis-Light")
+          .style("font-style", "oblique")
+          .attr("font-size", "11px")
+          .attr("fill", "black");
+
+
+        //SORT//
+        var sortOrderStart = false;
+        var sortOrderEnd = false;
+        var sortOrderStreet = false;
+        var sortOrderStyle = false;
+        var sortOrderArchitect = false;
+        ///////////Sort by location
+        d3.select("#byLocation").on("click", function() {
+
+          //Flip value of sortOrder
+          sortOrderStreet = !sortOrderStreet;
+          //on click, sort bars by Street
+          var newData = dataset.sort(function(a, b) {
+
+            if (sortOrderStreet) {
+              return d3.ascending(a.Street, b.Street);
+            } else {
+              return d3.descending(a.Street, b.Street);
+            }
+
+          })
+
+          var newOrder = yScale.domain(data.map(function(d) {
+            return d.Number;
+          }));
+
+          dataGroup.selectAll(".bar")
+            .sort(function(a, b) {
+              if (sortOrderStreet) {
+                return d3.ascending(a.Street, b.Street);
+              } else {
+                return d3.descending(a.Street, b.Street);
+              }
+            })
+
+            .transition(".bar")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number);
+            });
+
+          //move Name labels too
+          dataGroup.selectAll("text")
+            .sort(function(a, b) {
+              if (sortOrderStreet) {
+                return d3.ascending(a.Street, b.Street);
+              } else {
+                return d3.descending(a.Street, b.Street);
+              }
+            })
+            .transition("sortBarNameByStreet")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+          //move "today" labels too
+          dataGroup.selectAll("text2")
+            .sort(function(a, b) {
+              if (sortOrderStreet) {
+                return d3.ascending(a.Street, b.Street);
+              } else {
+                return d3.descending(a.Street, b.Street);
+              }
+
+            })
+            .transition("sortBarTodayByStreet")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+
+            dataGroup.selectAll(".bar")
+              .transition("colorbyLocation")
+              .duration(500)
+              .attr("fill", function(d) {
+                return streetColor(d.Street);
+              })
+
+        });
+        //////////////////
+        //Sort by start time
+        d3.select("#byTime").on("click", function() {
+
+          //Flip value of sortOrder
+          sortOrderStart = !sortOrderStart;
+          //on click, sort bars by Street
+          var newData = dataset.sort(function(a, b) {
+
+            if (sortOrderStart) {
+              return d3.ascending(a.Start, b.Start);
+            } else {
+              return d3.descending(a.Start, b.Start);
+            }
+          })
+
+          var newOrder = yScale.domain(data.map(function(d) {
+            return d.Number;
+          }));
+
+          dataGroup.selectAll(".bar")
+            .sort(function(a, b) {
+              if (sortOrderStart) {
+                return d3.ascending(a.Start, b.Start);
+              } else {
+                return d3.descending(a.Start, b.Start);
+              }
+            })
+            .transition("sortBarByStart")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number);
+            });
+          //move Name labels too
+          dataGroup.selectAll(".barName")
+            .sort(function(a, b) {
+              if (sortOrderStart) {
+                return d3.ascending(a.Start, b.Start);
+              } else {
+                return d3.descending(a.Start, b.Start);
+              }
+            })
+            .transition("sortBarNameByStart")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+          //move "today" labels too
+          dataGroup.selectAll(".barLabelToday")
+            .sort(function(a, b) {
+              if (sortOrderStart) {
+                return d3.ascending(a.Start, b.Start);
+              } else {
+                return d3.descending(a.Start, b.Start);
+              }
+
+            })
+            .transition("sortBarTodayByStart")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+
+
+
+        });
+
+        //////////////////
+        //Sort by Style
+        d3.select("#byStyle").on("click", function() {
+
+          //Flip value of sortOrder
+          sortOrderStyle = !sortOrderStyle;
+          //on click, sort bars by Street
+          var newData = dataset.sort(function(a, b) {
+
+            if (sortOrderStyle) {
+              return d3.ascending(a.Style, b.Style);
+            } else {
+              return d3.descending(a.Style, b.Style);
+            }
+          })
+
+          var newOrder = yScale.domain(data.map(function(d) {
+            return d.Number;
+          }));
+
+          dataGroup.selectAll(".bar")
+            .sort(function(a, b) {
+              if (sortOrderStyle) {
+                return d3.ascending(a.Style, b.Style);
+              } else {
+                return d3.descending(a.Style, b.Style);
+              }
+            })
+            .transition("sortBarByStyle")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number);
+            });
+          //move Name labels too
+          dataGroup.selectAll(".barName")
+            .sort(function(a, b) {
+              if (sortOrderStart) {
+                return d3.ascending(a.Style, b.Style);
+              } else {
+                return d3.descending(a.Style, b.Style);
+              }
+            })
+            .transition("sortBarNameByStyle")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+          //move "today" labels too
+          dataGroup.selectAll(".barLabelToday")
+            .sort(function(a, b) {
+              if (sortOrderStyle) {
+                return d3.ascending(a.Style, b.Style);
+              } else {
+                return d3.descending(a.Style, b.Style);
+              }
+
+            })
+            .transition("sortBarTodayByStyle")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+
+            dataGroup.selectAll(".bar")
+              .transition("colorbyStyle")
+              .duration(500)
+              .attr("fill", function(d) {
+                return styleColor(d.Style);
+              })
+
+
+
+
+
+        });
+        //Sort by Architect
+        d3.select("#byArchitect").on("click", function() {
+
+          //Flip value of sortOrder
+          sortOrderArchitect = !sortOrderArchitect;
+          //on click, sort bars by Street
+          var newData = dataset.sort(function(a, b) {
+
+            if (sortOrderArchitect) {
+              return d3.ascending(a.ArchGroup, b.ArchGroup);
+            } else {
+              return d3.descending(a.ArchGroup, b.ArchGroup);
+            }
+          })
+
+          var newOrder = yScale.domain(data.map(function(d) {
+            return d.Number;
+          }));
+
+          dataGroup.selectAll(".bar")
+            .sort(function(a, b) {
+              if (sortOrderArchitect) {
+                return d3.ascending(a.ArchGroup, b.ArchGroup);
+              } else {
+                return d3.descending(a.ArchGroup, b.ArchGroup);
+              }
+            })
+            .transition("sortBarByArchitect")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number);
+            });
+          //move Name labels too
+          dataGroup.selectAll(".barName")
+            .sort(function(a, b) {
+              if (sortOrderStart) {
+                return d3.ascending(a.ArchGroup, b.ArchGroup);
+              } else {
+                return d3.descending(a.ArchGroup, b.ArchGroup);
+              }
+            })
+            .transition("sortBarNameByArchitect")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+          //move "today" labels too
+          dataGroup.selectAll(".barLabelToday")
+            .sort(function(a, b) {
+              if (sortOrderArchitect) {
+                return d3.ascending(a.ArchGroup, b.ArchGroup);
+              } else {
+                return d3.descending(a.ArchGroup, b.ArchGroup);
+              }
+
+            })
+            .transition("sortBarTodayByArchitect")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+
+            dataGroup.selectAll(".bar")
+              .transition("colorbyArchitect")
+              .duration(500)
+              .attr("fill", function(d) {
+                return styleColor(d.ArchGroup);
+              })
+
+        });
+
+        //////////////////
+        //Sort by end time
+        d3.select("#byPreservation").on("click", function() {
+
+          //Flip value of sortOrder
+          sortOrderEnd = !sortOrderEnd;
+          //on click, sort bars by Street
+          var newData = dataset.sort(function(a, b) {
+
+            if (sortOrderEnd) {
+              return d3.ascending(a.End, b.End);
+            } else {
+              return d3.descending(a.End, b.End);
+            }
+          })
+
+          var newOrder = yScale.domain(data.map(function(d) {
+            return d.Number;
+          }));
+
+          dataGroup.selectAll(".bar")
+            .sort(function(a, b) {
+              if (sortOrderEnd) {
+                return d3.ascending(a.End, b.End);
+              } else {
+                return d3.descending(a.End, b.End);
+              }
+            })
+            .transition("sortBarByEnd")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number);
+            });
+          //move Name labels too
+          dataGroup.selectAll(".barName")
+            .sort(function(a, b) {
+              if (sortOrderEnd) {
+                return d3.ascending(a.End, b.End);
+              } else {
+                return d3.descending(a.End, b.End);
+              }
+            })
+            .transition("sortBarNameByEnd")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+          //move "today" labels too
+          dataGroup.selectAll(".barLabelToday")
+            .sort(function(a, b) {
+              if (sortOrderEnd) {
+                return d3.ascending(a.End, b.End);
+              } else {
+                return d3.descending(a.End, b.End);
+              }
+
+            })
+            .transition("sortBarTodayByEnd")
+            .duration(1000)
+            .attr("y", function(d, i) {
+              return yScale(d.Number) + yScale.bandwidth() - 5
+            })
+        });
+
+
+        svg.append("g")
+          .attr("class", "x axis") //Assign "axis" class
+          .attr("transform", "translate(0," + (padding) + ")")
+          .call(xAxisTop)
+          .selectAll("text")
+          .style("text-anchor", "start")
+          .attr("dx", "+.8em")
+          .attr("dy", ".20em")
+          .attr("transform", "rotate(-45)");
+
+        fixedTimeLine.append("g")
+          .attr("class", "x axis") //Assign "axis" class
+          .attr("transform", "translate(0," + (padding) + ")")
+          .call(xAxisBottom)
+          .selectAll("text")
+          .style("text-anchor", "end")
+          .attr("dx", "-.8em")
+          .attr("dy", ".15em")
+          .attr("transform", "rotate(-45)");
+
+
+      });
+  </script>
+
+</body>
+
+</html>
